@@ -112,6 +112,10 @@
 			"path": "pages/admin/schedule/list",
 			"style": { "navigationBarTitleText": "排期管理" }
 		},
+	{
+		"path": "pages/admin/schedule/today",
+		"style": { "navigationBarTitleText": "今日排班" }
+	},
 		{
 			"path": "pages/admin/batch",
 			"style": { "navigationBarTitleText": "批次管理" }

@@ -7,6 +7,7 @@ import com.tjut.edu.vaccine_system.common.result.Results;
 import com.tjut.edu.vaccine_system.model.entity.DoctorSchedule;
 import com.tjut.edu.vaccine_system.model.entity.SysUser;
 import com.tjut.edu.vaccine_system.model.vo.DoctorScheduleListVO;
+import com.tjut.edu.vaccine_system.model.vo.TodayScheduleOverviewVO;
 import com.tjut.edu.vaccine_system.service.DoctorScheduleGeneratorService;
 import com.tjut.edu.vaccine_system.service.DoctorScheduleService;
 import com.tjut.edu.vaccine_system.service.SysUserService;
@@ -18,6 +19,7 @@ import org.springframework.web.bind.annotation.*;
 import java.time.LocalDate;
 import java.time.format.DateTimeFormatter;
 import java.util.List;
+import java.util.Map;
 import java.util.stream.Collectors;
 
 /**
@@ -113,6 +115,29 @@ public class AdminDoctorScheduleController {
             return Result.ok(message);
         } catch (Exception e) {
             return Result.fail(500, "生成排班失败：" + e.getMessage());
+        }
+    }
+
+    @Operation(summary = "获取今日排班概览")
+    @GetMapping("/today-overview")
+    public Result<TodayScheduleOverviewVO> todayOverview(@RequestParam(required = false) LocalDate date) {
+        TodayScheduleOverviewVO overview = doctorScheduleService.getTodayOverview(date);
+        return Result.ok(overview);
+    }
+
+    @Operation(summary = "批量替换医生排班")
+    @PostMapping("/batch-replace")
+    public Result<Map<String, Integer>> batchReplace(@RequestBody Map<String, Object> params) {
+        try {
+            Long oldDoctorId = ((Number) params.get("oldDoctorId")).longValue();
+            Long newDoctorId = ((Number) params.get("newDoctorId")).longValue();
+            LocalDate date = params.get("date") != null ? LocalDate.parse((String) params.get("date")) : LocalDate.now();
+            String periodType = (String) params.get("periodType");
+
+            int replacedCount = doctorScheduleService.batchReplaceByPeriod(oldDoctorId, newDoctorId, date, periodType);
+            return Result.ok("成功替换" + replacedCount + "个排班时段", Map.of("replacedCount", replacedCount));
+        } catch (Exception e) {
+            return Result.fail(500, "替换失败：" + e.getMessage());
         }
     }
 }

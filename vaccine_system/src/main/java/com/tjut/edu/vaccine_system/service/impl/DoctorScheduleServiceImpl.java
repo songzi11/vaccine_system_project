@@ -5,20 +5,26 @@ import com.baomidou.mybatisplus.core.conditions.update.LambdaUpdateWrapper;
 import com.baomidou.mybatisplus.core.metadata.IPage;
 import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
 import com.baomidou.mybatisplus.extension.service.impl.ServiceImpl;
+import com.tjut.edu.vaccine_system.mapper.DoctorScheduleMapper;
 import com.tjut.edu.vaccine_system.model.entity.DoctorSchedule;
 import com.tjut.edu.vaccine_system.model.entity.SysUser;
+import com.tjut.edu.vaccine_system.model.entity.VaccinationSite;
 import com.tjut.edu.vaccine_system.model.enums.ScheduleStatusEnum;
 import com.tjut.edu.vaccine_system.model.enums.UserStatusEnum;
-import com.tjut.edu.vaccine_system.mapper.DoctorScheduleMapper;
+import com.tjut.edu.vaccine_system.model.vo.DoctorScheduleOverviewItemVO;
+import com.tjut.edu.vaccine_system.model.vo.DoctorScheduleSimpleVO;
+import com.tjut.edu.vaccine_system.model.vo.TodayScheduleOverviewVO;
+import com.tjut.edu.vaccine_system.mapper.VaccinationSiteMapper;
 import com.tjut.edu.vaccine_system.service.DoctorScheduleService;
 import com.tjut.edu.vaccine_system.service.SysUserService;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 
+import java.time.DayOfWeek;
 import java.time.LocalDate;
 import java.time.LocalTime;
-import java.util.List;
-import java.util.Set;
+import java.time.format.TextStyle;
+import java.util.*;
 import java.util.stream.Collectors;
 
 @Service
@@ -26,6 +32,7 @@ import java.util.stream.Collectors;
 public class DoctorScheduleServiceImpl extends ServiceImpl<DoctorScheduleMapper, DoctorSchedule> implements DoctorScheduleService {
 
     private final SysUserService sysUserService;
+    private final VaccinationSiteMapper vaccinationSiteMapper;
 
     @Override
     public List<DoctorSchedule> listAvailable(Long siteId, LocalDate fromDate, LocalDate toDate) {
@@ -161,5 +168,158 @@ public class DoctorScheduleServiceImpl extends ServiceImpl<DoctorScheduleMapper,
         } catch (Exception ignored) {
             return LocalTime.of(23, 59);
         }
+    }
+
+    @Override
+    public TodayScheduleOverviewVO getTodayOverview(LocalDate date) {
+        if (date == null) {
+            date = LocalDate.now();
+        }
+
+        // 查询当天的所有排班记录
+        LambdaQueryWrapper<DoctorSchedule> wrapper = new LambdaQueryWrapper<>();
+        wrapper.eq(DoctorSchedule::getScheduleDate, date)
+                .orderByAsc(DoctorSchedule::getTimeSlot);
+        List<DoctorSchedule> schedules = list(wrapper);
+
+        // 按医生ID分组
+        Map<Long, List<DoctorSchedule>> groupedByDoctor = schedules.stream()
+                .collect(Collectors.groupingBy(DoctorSchedule::getDoctorId));
+
+        List<DoctorScheduleOverviewItemVO> doctors = new ArrayList<>();
+
+        for (Map.Entry<Long, List<DoctorSchedule>> entry : groupedByDoctor.entrySet()) {
+            Long doctorId = entry.getKey();
+            List<DoctorSchedule> doctorSchedules = entry.getValue();
+
+            // 获取医生信息
+            SysUser doctor = sysUserService.getById(doctorId);
+            if (doctor == null) continue;
+
+            // 获取接种点信息（取第一个排班记录的接种点）
+            Long siteId = doctorSchedules.get(0).getSiteId();
+            VaccinationSite site = vaccinationSiteMapper.selectById(siteId);
+
+            // 统计上午/下午时段数
+            int morningCount = 0;
+            int afternoonCount = 0;
+            int totalAppointments = 0;
+            boolean allEnabled = true;
+
+            for (DoctorSchedule schedule : doctorSchedules) {
+                int startHour = parseTimeSlotStart(schedule.getTimeSlot());
+                if (startHour >= 8 && startHour < 12) {
+                    morningCount++;
+                } else if (startHour >= 14 && startHour < 17) {
+                    afternoonCount++;
+                }
+
+                totalAppointments += schedule.getCurrentCount() != null ? schedule.getCurrentCount() : 0;
+
+                if (schedule.getStatus() == null || schedule.getStatus() != 1) {
+                    allEnabled = false;
+                }
+            }
+
+            // 转换为简单VO
+            List<DoctorScheduleSimpleVO> scheduleVOs = doctorSchedules.stream()
+                    .map(s -> DoctorScheduleSimpleVO.builder()
+                            .id(s.getId())
+                            .doctorId(s.getDoctorId())
+                            .siteId(s.getSiteId())
+                            .scheduleDate(s.getScheduleDate())
+                            .timeSlot(s.getTimeSlot())
+                            .maxCapacity(s.getMaxCapacity())
+                            .currentCount(s.getCurrentCount())
+                            .status(s.getStatus())
+                            .build())
+                    .collect(Collectors.toList());
+
+            DoctorScheduleOverviewItemVO item = DoctorScheduleOverviewItemVO.builder()
+                    .doctorId(doctorId)
+                    .doctorName(doctor.getRealName())
+                    .doctorGender(doctor.getGender())
+                    .doctorPhone(doctor.getPhone())
+                    .siteId(siteId)
+                    .siteName(site != null ? site.getSiteName() : "")
+                    .morningSlotCount(morningCount)
+                    .afternoonSlotCount(afternoonCount)
+                    .todayAppointmentCount(totalAppointments)
+                    .status(allEnabled ? "normal" : "partial")
+                    .schedules(scheduleVOs)
+                    .build();
+
+            doctors.add(item);
+        }
+
+        // 获取星期
+        String dayOfWeek = date.getDayOfWeek().getDisplayName(TextStyle.FULL, Locale.CHINESE);
+
+        return TodayScheduleOverviewVO.builder()
+                .date(date)
+                .dayOfWeek(dayOfWeek)
+                .doctors(doctors)
+                .build();
+    }
+
+    @Override
+    public int batchReplaceByPeriod(Long oldDoctorId, Long newDoctorId, LocalDate date, String periodType) {
+        if (oldDoctorId == null || newDoctorId == null || date == null) {
+            return 0;
+        }
+
+        // 查询符合条件的排班记录
+        LambdaQueryWrapper<DoctorSchedule> wrapper = new LambdaQueryWrapper<>();
+        wrapper.eq(DoctorSchedule::getDoctorId, oldDoctorId)
+                .eq(DoctorSchedule::getScheduleDate, date);
+
+        List<DoctorSchedule> toReplace = list(wrapper);
+        List<Long> idsToUpdate = new ArrayList<>();
+
+        for (DoctorSchedule schedule : toReplace) {
+            int startHour = parseTimeSlotStart(schedule.getTimeSlot());
+            boolean shouldUpdate = false;
+
+            if ("all".equals(periodType)) {
+                shouldUpdate = true;
+            } else if ("morning".equals(periodType)) {
+                shouldUpdate = (startHour >= 8 && startHour < 12);
+            } else if ("afternoon".equals(periodType)) {
+                shouldUpdate = (startHour >= 14 && startHour < 17);
+            }
+
+            if (shouldUpdate) {
+                idsToUpdate.add(schedule.getId());
+            }
+        }
+
+        // 批量更新
+        if (!idsToUpdate.isEmpty()) {
+            LambdaUpdateWrapper<DoctorSchedule> updateWrapper = new LambdaUpdateWrapper<>();
+            updateWrapper.in(DoctorSchedule::getId, idsToUpdate)
+                    .set(DoctorSchedule::getDoctorId, newDoctorId);
+            return update(updateWrapper) ? idsToUpdate.size() : 0;
+        }
+
+        return 0;
+    }
+
+    /**
+     * 解析时间槽的开始小时
+     */
+    private static int parseTimeSlotStart(String timeSlot) {
+        if (timeSlot == null || timeSlot.isBlank()) return 0;
+        String s = timeSlot.trim();
+        int dash = s.indexOf('-');
+        if (dash > 0) {
+            String startPart = s.substring(0, dash).trim();
+            if (!startPart.isEmpty()) {
+                try {
+                    return Integer.parseInt(startPart.substring(0, 2));
+                } catch (Exception ignored) {
+                }
+            }
+        }
+        return 0;
     }
 }

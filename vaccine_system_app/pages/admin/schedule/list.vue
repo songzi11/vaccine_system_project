@@ -3,6 +3,7 @@
 		<view class="toolbar">
 			<text class="page-title">医生排班管理</text>
 			<view class="toolbar-buttons">
+				<text class="btn-today" @click="goToToday">今日概览</text>
 				<text class="btn-auto-generate" @click="autoGenerateSchedules">一键排班</text>
 				<text class="btn-add" @click="openAdd">+ 新增排班</text>
 			</view>
@@ -166,6 +167,9 @@
 			await this.loadList()
 		},
 		methods: {
+			goToToday() {
+				uni.navigateTo({ url: '/pages/admin/schedule/today' })
+			},
 			async loadDoctors() {
 				try {
 					const res = await request({ url: '/api/admin/appointment/doctors', method: 'GET' })
@@ -361,6 +365,7 @@
 	.toolbar { background: #fff; padding: 24rpx 30rpx; border-bottom: 1rpx solid #eee; display: flex; justify-content: space-between; align-items: center; }
 	.page-title { font-size: 36rpx; font-weight: bold; color: #333; }
 	.toolbar-buttons { display: flex; gap: 20rpx; }
+	.btn-today { font-size: 28rpx; color: #67c23a; background: #f0fdf4; padding: 10rpx 20rpx; border-radius: 8rpx; border: 1rpx solid #67c23a; }
 	.btn-auto-generate { font-size: 28rpx; color: #007aff; background: #f0f8ff; padding: 10rpx 20rpx; border-radius: 8rpx; border: 1rpx solid #007aff; }
 	.btn-add { font-size: 28rpx; color: #007aff; }
 	.filter-row { display: flex; gap: 16rpx; padding: 20rpx; background: #fff; border-bottom: 1rpx solid #eee; flex-wrap: wrap; }

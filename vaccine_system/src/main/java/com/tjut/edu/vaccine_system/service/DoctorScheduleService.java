@@ -3,6 +3,7 @@ package com.tjut.edu.vaccine_system.service;
 import com.baomidou.mybatisplus.core.metadata.IPage;
 import com.baomidou.mybatisplus.extension.service.IService;
 import com.tjut.edu.vaccine_system.model.entity.DoctorSchedule;
+import com.tjut.edu.vaccine_system.model.vo.TodayScheduleOverviewVO;
 
 import java.time.LocalDate;
 import java.util.List;
@@ -39,4 +40,19 @@ public interface DoctorScheduleService extends IService<DoctorSchedule> {
      * @return 是否更新成功
      */
     boolean decrementCurrentCount(Long scheduleId);
+
+    /**
+     * 获取今日排班概览（按医生分组）
+     */
+    TodayScheduleOverviewVO getTodayOverview(LocalDate date);
+
+    /**
+     * 批量替换医生排班
+     * @param oldDoctorId 被替换的医生ID
+     * @param newDoctorId 新医生ID
+     * @param date 日期
+     * @param periodType 上午/下午/全天
+     * @return 实际替换的数量
+     */
+    int batchReplaceByPeriod(Long oldDoctorId, Long newDoctorId, LocalDate date, String periodType);
 }

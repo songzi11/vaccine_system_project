@@ -114,23 +114,23 @@ public class DoctorScheduleGeneratorService {
         // 随机选择医生
         List<SysUser> selectedDoctors = selectRandomDoctors(doctors, doctorCount, random);
 
-        // 为每个时间段生成排班
-        for (int i = 0; i < timeSlots.size() && i < selectedDoctors.size(); i++) {
-            SysUser doctor = selectedDoctors.get(i);
-            String timeSlot = timeSlots.get(i);
+        // 为每个选中的医生生成所有时间段排班
+        for (SysUser doctor : selectedDoctors) {
+            // 为该医生生成所有时间段
+            for (String timeSlot : timeSlots) {
+                DoctorSchedule schedule = DoctorSchedule.builder()
+                        .doctorId(doctor.getId())
+                        .siteId(site.getId())
+                        .scheduleDate(date)
+                        .timeSlot(timeSlot)
+                        .maxCapacity(maxCapacity)
+                        .currentCount(0)
+                        .status(ScheduleStatusEnum.ENABLED.getCode())
+                        .build();
 
-            DoctorSchedule schedule = DoctorSchedule.builder()
-                    .doctorId(doctor.getId())
-                    .siteId(site.getId())
-                    .scheduleDate(date)
-                    .timeSlot(timeSlot)
-                    .maxCapacity(maxCapacity)
-                    .currentCount(0)
-                    .status(ScheduleStatusEnum.ENABLED.getCode())
-                    .build();
-
-            doctorScheduleService.save(schedule);
-            log.debug("为医生{}在{} {}于{}生成排班", doctor.getRealName(), site.getSiteName(), date, timeSlot);
+                doctorScheduleService.save(schedule);
+                log.debug("为医生{}在{} {}于{}生成排班", doctor.getRealName(), site.getSiteName(), date, timeSlot);
+            }
         }
     }
 
