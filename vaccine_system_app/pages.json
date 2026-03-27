@@ -1,0 +1,135 @@
+{
+	"pages": [
+		{
+			"path": "pages/login/login",
+			"style": { "navigationBarTitleText": "登录" }
+		},
+		{
+			"path": "pages/home/home",
+			"style": { "navigationBarTitleText": "首页" }
+		},
+		{
+			"path": "pages/vaccine/list",
+			"style": { "navigationBarTitleText": "疫苗列表" }
+		},
+		{
+			"path": "pages/order/add",
+			"style": { "navigationBarTitleText": "预约接种" }
+		},
+		{
+			"path": "pages/order/list",
+			"style": { "navigationBarTitleText": "我的预约" }
+		},
+		{
+			"path": "pages/record/list",
+			"style": { "navigationBarTitleText": "接种记录" }
+		},
+		{
+			"path": "pages/record/myRecord",
+			"style": { "navigationBarTitleText": "我的接种记录" }
+		},
+		{
+			"path": "pages/notice/list",
+			"style": { "navigationBarTitleText": "公告" }
+		},
+		{
+			"path": "pages/stats/dashboard",
+			"style": { "navigationBarTitleText": "统计大屏" }
+		},
+		{
+			"path": "pages/doctor/workbench",
+			"style": { "navigationBarTitleText": "医生工作台" }
+		},
+		{
+			"path": "pages/admin/users",
+			"style": { "navigationBarTitleText": "用户管理" }
+		},
+		{
+			"path": "pages/admin/user-detail",
+			"style": { "navigationBarTitleText": "用户详情" }
+		},
+		{
+			"path": "pages/admin/user-edit",
+			"style": { "navigationBarTitleText": "编辑用户" }
+		},
+		{
+			"path": "pages/admin/vaccine",
+			"style": { "navigationBarTitleText": "疫苗管理" }
+		},
+		{
+			"path": "pages/admin/vaccine-edit",
+			"style": { "navigationBarTitleText": "疫苗编辑" }
+		},
+		{
+			"path": "pages/admin/site",
+			"style": { "navigationBarTitleText": "接种点管理" }
+		},
+		{
+			"path": "pages/admin/site-detail",
+			"style": { "navigationBarTitleText": "接种点详情" }
+		},
+		{
+			"path": "pages/admin/notice",
+			"style": { "navigationBarTitleText": "公告管理" }
+		},
+		{
+			"path": "pages/user/child/list",
+			"style": { "navigationBarTitleText": "宝宝档案" }
+		},
+		{
+			"path": "pages/user/child/add",
+			"style": { "navigationBarTitleText": "添加宝宝" }
+		},
+		{
+			"path": "pages/user/child/edit",
+			"style": { "navigationBarTitleText": "编辑宝宝" }
+		},
+		{
+			"path": "pages/user/appointment/list",
+			"style": { "navigationBarTitleText": "我的预约" }
+		},
+		{
+			"path": "pages/user/record/list",
+			"style": { "navigationBarTitleText": "接种记录" }
+		},
+		{
+			"path": "pages/user/site/list",
+			"style": { "navigationBarTitleText": "接种点信息" }
+		},
+		{
+			"path": "pages/doctor/vaccinate/list",
+			"style": { "navigationBarTitleText": "待接种核销" }
+		},
+		{
+			"path": "pages/doctor/dispatch/list",
+			"style": { "navigationBarTitleText": "调遣通知" }
+		},
+		{
+			"path": "pages/doctor/notice",
+			"style": { "navigationBarTitleText": "发布公告" }
+		},
+		{
+			"path": "pages/admin/schedule/list",
+			"style": { "navigationBarTitleText": "排期管理" }
+		},
+		{
+			"path": "pages/admin/batch",
+			"style": { "navigationBarTitleText": "批次管理" }
+		}
+	],
+	"globalStyle": {
+		"pageOrientation": "portrait",
+		"navigationBarTitleText": "疫苗接种",
+		"navigationBarTextStyle": "white",
+		"navigationBarBackgroundColor": "#007AFF",
+		"backgroundColor": "#F8F8F8",
+		"backgroundColorTop": "#F4F5F6",
+		"backgroundColorBottom": "#F4F5F6",
+		"mp-360": { "navigationStyle": "custom" },
+		"h5": {
+			"maxWidth": 1190,
+			"navigationBarTextStyle": "black",
+			"navigationBarBackgroundColor": "#F1F1F1"
+		}
+	}
+}
