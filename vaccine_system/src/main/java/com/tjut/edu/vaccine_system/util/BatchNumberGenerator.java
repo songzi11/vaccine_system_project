@@ -1,5 +1,7 @@
 package com.tjut.edu.vaccine_system.util;
 
+import com.tjut.edu.vaccine_system.common.exception.BizErrorCode;
+import com.tjut.edu.vaccine_system.common.exception.BizException;
 import com.tjut.edu.vaccine_system.mapper.VaccineBatchMapper;
 import com.tjut.edu.vaccine_system.model.entity.Vaccine;
 import com.tjut.edu.vaccine_system.service.VaccineService;
@@ -32,13 +34,13 @@ public class BatchNumberGenerator {
      */
     public String generateBatchNumber(Long vaccineId) {
         if (vaccineId == null) {
-            throw new IllegalArgumentException("疫苗ID不能为空");
+            throw new BizException(BizErrorCode.BAD_REQUEST, "疫苗ID不能为空");
         }
 
         // 获取疫苗信息
         Vaccine vaccine = vaccineService.getById(vaccineId);
         if (vaccine == null) {
-            throw new IllegalArgumentException("疫苗不存在，ID: " + vaccineId);
+            throw new BizException(BizErrorCode.VACCINE_NOT_FOUND, "疫苗不存在，ID: " + vaccineId);
         }
 
         // 获取疫苗简称，如果为空则使用疫苗名称的首字母

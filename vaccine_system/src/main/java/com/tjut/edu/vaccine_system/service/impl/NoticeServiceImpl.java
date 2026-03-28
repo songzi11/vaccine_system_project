@@ -6,6 +6,7 @@ import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
 import com.baomidou.mybatisplus.extension.service.impl.ServiceImpl;
 import com.tjut.edu.vaccine_system.common.exception.BizErrorCode;
 import com.tjut.edu.vaccine_system.common.exception.BizException;
+import com.tjut.edu.vaccine_system.constants.RoleConstants;
 import com.tjut.edu.vaccine_system.model.entity.Notice;
 import com.tjut.edu.vaccine_system.mapper.NoticeMapper;
 import com.tjut.edu.vaccine_system.service.NoticeService;
@@ -21,8 +22,6 @@ import java.util.List;
 @Service
 public class NoticeServiceImpl extends ServiceImpl<NoticeMapper, Notice> implements NoticeService {
 
-    private static final String ROLE_DOCTOR = "DOCTOR";
-    private static final String ROLE_ADMIN = "ADMIN";
     private static final String AUDIT_PENDING = "PENDING";
     private static final String AUDIT_APPROVED = "APPROVED";
     private static final String AUDIT_REJECTED = "REJECTED";
@@ -48,7 +47,7 @@ public class NoticeServiceImpl extends ServiceImpl<NoticeMapper, Notice> impleme
         LambdaQueryWrapper<Notice> wrapper = new LambdaQueryWrapper<>();
         wrapper.eq(Notice::getStatus, 1)
                 // 仅展示：管理员直接发布 或 医生提交且管理员已审核通过（手册：医生提交未审核/已拒绝的不展示）
-                .and(w -> w.eq(Notice::getPublisherRole, ROLE_ADMIN).or().eq(Notice::getAuditStatus, AUDIT_APPROVED))
+                .and(w -> w.eq(Notice::getPublisherRole, RoleConstants.ADMIN).or().eq(Notice::getAuditStatus, AUDIT_APPROVED))
                 .like(StringUtils.hasText(title), Notice::getTitle, title);
         // 定向公告：仅 targetUserId 为空（全员可见）或 等于当前用户（仅本人可见的警告/冻结公告）
         if (userId != null) {
@@ -65,7 +64,7 @@ public class NoticeServiceImpl extends ServiceImpl<NoticeMapper, Notice> impleme
     public Notice submitByDoctor(Notice notice, Long doctorId) {
         if (doctorId == null) throw new BizException(BizErrorCode.LOGIN_REQUIRED);
         notice.setPublisherId(doctorId);
-        notice.setPublisherRole(ROLE_DOCTOR);
+        notice.setPublisherRole(RoleConstants.DOCTOR);
         notice.setAuditStatus(AUDIT_PENDING);
         notice.setRejectReason(null);
         notice.setStatus(0);
@@ -112,7 +111,7 @@ public class NoticeServiceImpl extends ServiceImpl<NoticeMapper, Notice> impleme
         if (doctorId == null) return List.of();
         return list(new LambdaQueryWrapper<Notice>()
                 .eq(Notice::getPublisherId, doctorId)
-                .eq(Notice::getPublisherRole, ROLE_DOCTOR)
+                .eq(Notice::getPublisherRole, RoleConstants.DOCTOR)
                 .orderByDesc(Notice::getCreateTime));
     }
 
@@ -157,7 +156,7 @@ public class NoticeServiceImpl extends ServiceImpl<NoticeMapper, Notice> impleme
                 .content(content)
                 .type("SYSTEM")
                 .publisherId(null)
-                .publisherRole(ROLE_ADMIN)
+                .publisherRole(RoleConstants.ADMIN)
                 .auditStatus(AUDIT_APPROVED)
                 .rejectReason(null)
                 .isTop(0)

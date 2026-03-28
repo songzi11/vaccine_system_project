@@ -1,6 +1,6 @@
 <template>
 	<view class="page">
-		<view class="date-bar">{{ nowDate }}</view>
+		<ClockBar ref="clockBarRef" />
 		<view class="steps-hint">选择儿童 → 选择疫苗 → 选择时段 → 提交</view>
 		<uni-forms ref="formRef" :model="form" :rules="rules" label-width="120rpx" label-position="top">
 			<view class="form-card">
@@ -66,25 +66,14 @@
 							<text class="slot-label-sub">驻场医生排班</text>
 						</view>
 					</template>
-					<view v-if="!form.siteId || !form.orderDate" class="picker-value hint">请先选择接种点和预约日期</view>
-					<view v-else class="slot-wrap">
-						<scroll-view scroll-x class="slot-scroll" :show-scrollbar="true">
-							<view class="slot-list">
-								<view
-									v-for="slot in slotsForSelectedDate"
-									:key="slot.id"
-									class="slot-item"
-									:class="{ booked: slot.booked, selected: form.doctorScheduleId === slot.id, expired: slot.expired }"
-									@click="onSlotClick(slot)"
-								>
-									<text class="slot-time">{{ slot.timeSlot || '-' }}</text>
-									<text class="slot-status">{{ slot.expired ? '已过期' : slot.booked ? '已约' : '可约' }}</text>
-								</view>
-							</view>
-						</scroll-view>
-						<view v-if="slotsForSelectedDate.length === 0 && !scheduleLoading" class="slot-empty">该日期暂无排班</view>
-						<view v-if="scheduleLoading" class="slot-loading">加载排班中...</view>
-					</view>
+					<TimeSlotPicker
+						ref="timeSlotPickerRef"
+						:site-id="form.siteId"
+						:order-date="form.orderDate"
+						:date-range-start="dateRangeStart"
+						:date-range-end="dateRangeEnd"
+						@select="onSlotSelect"
+					/>
 				</uni-forms-item>
 				<uni-forms-item label="备注" name="remark">
 					<textarea v-model="form.remark" placeholder="选填" class="textarea" maxlength="200" />
@@ -101,6 +90,10 @@
 	import request, { parsePageResponse, getUserId } from '@/common/request.js'
 
 	export default {
+		components: {
+			TimeSlotPicker: () => import('@/components/TimeSlotPicker.vue'),
+			ClockBar: () => import('@/components/ClockBar.vue')
+		},
 		data() {
 			return {
 				form: {
@@ -125,42 +118,7 @@
 				siteOptions: [],
 				siteIndex: 0,
 				stockHint: null,
-				loading: false,
-				nowDate: '',
-				dateTimer: null,
-				scheduleList: [],
-				scheduleLoading: false
-			}
-		},
-		created() {
-			this.updateNowDate()
-		},
-		onLoad(options) {
-			this.updateNowDate()
-			this.dateTimer = setInterval(() => this.updateNowDate(), 1000)
-			if (options.childId) this.form.childId = options.childId
-			if (options.vaccineId) this.form.vaccineId = options.vaccineId
-			this.setDateRange()
-			this.loadChildren()
-			this.loadVaccines()
-			this.loadSites()
-		},
-		onShow() {
-			this.updateNowDate()
-			if (!this.dateTimer) {
-				this.dateTimer = setInterval(() => this.updateNowDate(), 1000)
-			}
-		},
-		onHide() {
-			if (this.dateTimer) {
-				clearInterval(this.dateTimer)
-				this.dateTimer = null
-			}
-		},
-		onUnload() {
-			if (this.dateTimer) {
-				clearInterval(this.dateTimer)
-				this.dateTimer = null
+				loading: false
 			}
 		},
 		computed: {
@@ -178,73 +136,17 @@
 				const m = String(d.getMonth() + 1).padStart(2, '0')
 				const day = String(d.getDate()).padStart(2, '0')
 				return y + '-' + m + '-' + day
-			},
-			slotsForSelectedDate() {
-				if (!this.form.orderDate || !this.scheduleList.length) return []
-				const dateStr = String(this.form.orderDate).slice(0, 10)
-				const list = this.scheduleList.filter(s => String(s.scheduleDate || '').slice(0, 10) === dateStr)
-				return list.map(s => ({
-					id: s.id,
-					timeSlot: s.timeSlot,
-					booked: (s.currentCount != null && s.maxCapacity != null) && s.currentCount >= s.maxCapacity,
-					expired: this.isSlotExpired(s),
-					doctorId: s.doctorId,
-					siteId: s.siteId,
-					scheduleDate: s.scheduleDate
-				}))
 			}
 		},
+		onLoad(options) {
+			this.setDateRange()
+			if (options.childId) this.form.childId = options.childId
+			if (options.vaccineId) this.form.vaccineId = options.vaccineId
+			this.loadChildren()
+			this.loadVaccines()
+			this.loadSites()
+		},
 		methods: {
-			updateNowDate() {
-				const d = new Date()
-				const y = d.getFullYear()
-				const m = String(d.getMonth() + 1).padStart(2, '0')
-				const day = String(d.getDate()).padStart(2, '0')
-				const h = String(d.getHours()).padStart(2, '0')
-				const min = String(d.getMinutes()).padStart(2, '0')
-				const s = String(d.getSeconds()).padStart(2, '0')
-				const week = ['日', '一', '二', '三', '四', '五', '六'][d.getDay()]
-				this.nowDate = `${y}年${m}月${day}日 周${week} ${h}:${min}:${s}`
-			},
-			// 判断排班时段是否已过期
-			isSlotExpired(slot) {
-				// 如果没有排班日期或时间段，认为不过期
-				if (!slot.scheduleDate || !slot.timeSlot) return false
-
-				// 获取当前时间
-				const now = new Date()
-
-				// 解析排班日期
-				const scheduleDate = new Date(slot.scheduleDate)
-
-				// 如果排班日期早于今天，则过期
-				if (scheduleDate < new Date(now.getFullYear(), now.getMonth(), now.getDate())) {
-					return true
-				}
-
-				// 如果是今天的排班，需要进一步判断时间
-				if (scheduleDate.getDate() === now.getDate() &&
-					scheduleDate.getMonth() === now.getMonth() &&
-					scheduleDate.getFullYear() === now.getFullYear()) {
-
-					// 解析时间段（假设格式为 "HH:MM-HH:MM"）
-					const timeMatch = slot.timeSlot.match(/^(\d{1,2}):(\d{2})/)
-					if (timeMatch) {
-						const slotHour = parseInt(timeMatch[1])
-						const slotMinute = parseInt(timeMatch[2])
-
-						// 创建排班时段的结束时间
-						const slotEndTime = new Date(scheduleDate)
-						slotEndTime.setHours(slotHour, slotMinute, 0, 0)
-
-						// 如果当前时间已经过了排班时段的结束时间，则过期
-						return now > slotEndTime
-					}
-				}
-
-				// 默认不过期
-				return false
-			},
 			setDateRange() {
 				if (!this.form.orderDate) {
 					const d = new Date()
@@ -257,6 +159,9 @@
 			onOrderDateChange(e) {
 				this.form.orderDate = e.detail.value || ''
 				this.form.doctorScheduleId = ''
+				if (this.$refs.timeSlotPickerRef) {
+					this.$refs.timeSlotPickerRef.setSelectedId('')
+				}
 			},
 			async loadChildren() {
 				try {
@@ -294,9 +199,8 @@
 			},
 			async loadVaccines() {
 				try {
-					const res = await request({ url: '/vaccine/list', method: 'GET', data: { current: 1, size: 999, status: 1 } })
+					const res = await request({ url: '/vaccine/list', method: 'GET', data: { current:1, size: 999, status: 1 } })
 					const { list: rows } = parsePageResponse(res)
-					// 仅展示上架疫苗；不可用（年龄/禁忌症/间隔）由后端智能接口校验
 					this.vaccineOptions = (rows || []).filter(r => r.status !== 0).map(r => ({
 						label: r.vaccineName || r.name || ('疫苗' + (r.id || '')),
 						value: r.id
@@ -334,7 +238,6 @@
 						if (this.siteIndex < 0) this.siteIndex = 0
 					}
 					this.fetchStockHint()
-					this.loadSchedules()
 				} catch (e) {
 					uni.showToast({ title: e.message || '加载接种点失败', icon: 'none' })
 				}
@@ -356,63 +259,15 @@
 				if (this.siteOptions[i]) this.form.siteId = this.siteOptions[i].value
 				this.form.doctorScheduleId = ''
 				this.fetchStockHint()
-				this.loadSchedules()
-			},
-			async loadSchedules() {
-				if (!this.form.siteId) {
-					this.scheduleList = []
-					return
-				}
-				this.scheduleLoading = true
-				try {
-					const from = this.dateRangeStart
-					const end = this.dateRangeEnd
-					const res = await request({
-						url: '/api/appointment/schedules',
-						method: 'GET',
-						data: { siteId: this.form.siteId, fromDate: from, toDate: end }
-					})
-					this.scheduleList = (res && res.data && Array.isArray(res.data)) ? res.data : []
-				} catch (_) {
-					this.scheduleList = []
-				} finally {
-					this.scheduleLoading = false
+				if (this.$refs.timeSlotPickerRef) {
+					this.$refs.timeSlotPickerRef.setSelectedId('')
 				}
 			},
-			onSlotClick(slot) {
-				if (slot.expired) {
-					uni.showToast({ title: '该时段已过期', icon: 'none' })
-					return
+			onSlotSelect(slot) {
+				if (this.$refs.timeSlotPickerRef) {
+					this.$refs.timeSlotPickerRef.setSelectedId(slot.id)
 				}
-				if (slot.booked) {
-					uni.showToast({ title: '该时段已约满', icon: 'none' })
-					return
-				}
-				// 检查该医生在该时段是否已经被预约
-				this.checkDoctorSlotOccupied(slot).then(isOccupied => {
-					if (isOccupied) {
-						uni.showToast({ title: '该医生在此时间段已有预约', icon: 'none' })
-						return
-					}
-					this.form.doctorScheduleId = slot.id
-				})
-			},
-
-			// 检查医生在特定时段是否已经被预约
-			async checkDoctorSlotOccupied(slot) {
-				if (!slot.doctorId || !slot.scheduleDate || !slot.timeSlot) {
-					return false
-				}
-
-				try {
-					// 这里需要调用后端API检查医生时段占用情况
-					// 由于当前API没有提供此功能，我们暂时返回false
-					// 在实际实现中，这里应该调用后端API
-					return false
-				} catch (e) {
-					console.error('检查医生时段占用情况失败', e)
-					return false
-				}
+				this.form.doctorScheduleId = slot.id
 			},
 			async fetchStockHint() {
 				if (!this.form.vaccineId || !this.form.siteId) {
@@ -444,7 +299,6 @@
 						uni.showToast({ title: '当前接种点该疫苗库存不足', icon: 'none' })
 						return
 					}
-					// 使用智能预约接口：后端校验年龄、禁忌症、间隔、库存防超卖；提交所选排班ID
 					await request({
 						url: '/api/appointment/create',
 						method: 'POST',
@@ -505,17 +359,6 @@
 		border-radius: 12rpx;
 		font-size: 28rpx;
 	}
-	.date-bar {
-		background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-		background-color: #667eea;
-		color: #fff;
-		text-align: center;
-		padding: 20rpx 24rpx;
-		font-size: 28rpx;
-		font-weight: 500;
-		min-height: 40rpx;
-		flex-shrink: 0;
-	}
 	.stock-hint {
 		font-size: 24rpx;
 		color: #07c160;
@@ -532,59 +375,11 @@
 			font-size: 32rpx;
 		}
 	}
-	.picker-value.hint {
-		color: #999;
-	}
 	.slot-label-wrap {
 		display: flex;
 		flex-direction: column;
 		gap: 4rpx;
 		.slot-label-main { font-size: 28rpx; font-weight: 500; color: #333; }
 		.slot-label-sub { font-size: 22rpx; color: #999; }
-	}
-	.slot-wrap { width: 100%; }
-	.slot-scroll { white-space: nowrap; width: 100%; }
-	.slot-list {
-		display: inline-flex;
-		flex-wrap: nowrap;
-		gap: 20rpx;
-		padding: 12rpx 0 24rpx;
-		min-width: min-content;
-	}
-	.slot-item {
-		flex-shrink: 0;
-		min-width: 200rpx;
-		padding: 24rpx 28rpx;
-		background: #f0f9ff;
-		border-radius: 12rpx;
-		border: 2rpx solid #e0e0e0;
-		display: inline-flex;
-		align-items: center;
-		justify-content: space-between;
-		&.booked {
-			background: #f5f5f5;
-			color: #999;
-			border-color: #eee;
-		}
-		&.expired {
-			background: #f5f5f5;
-			color: #999;
-			border-color: #eee;
-		}
-		&.selected {
-			border-color: #07c160;
-			background: #e8f8f0;
-		}
-		.slot-time { font-size: 28rpx; color: #333; }
-		.slot-status { font-size: 24rpx; color: #07c160; }
-		&.booked .slot-status { color: #999; }
-		&.expired .slot-status { color: #999; }
-	}
-	.slot-empty, .slot-loading {
-		width: 100%;
-		padding: 24rpx;
-		text-align: center;
-		color: #999;
-		font-size: 26rpx;
 	}
 </style>

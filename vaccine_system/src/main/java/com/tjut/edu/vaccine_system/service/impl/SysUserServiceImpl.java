@@ -7,51 +7,40 @@ import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
 import com.baomidou.mybatisplus.extension.service.impl.ServiceImpl;
 import com.tjut.edu.vaccine_system.common.exception.BizErrorCode;
 import com.tjut.edu.vaccine_system.common.exception.BizException;
-import com.tjut.edu.vaccine_system.model.entity.Appointment;
-import com.tjut.edu.vaccine_system.model.entity.ChildProfile;
-import com.tjut.edu.vaccine_system.model.entity.Record;
+import com.tjut.edu.vaccine_system.constants.RoleConstants;
 import com.tjut.edu.vaccine_system.model.entity.SysUser;
-import com.tjut.edu.vaccine_system.model.enums.AppointmentStatusEnum;
 import com.tjut.edu.vaccine_system.model.enums.UserStatusEnum;
 import com.tjut.edu.vaccine_system.model.dto.RegisterDTO;
-import com.tjut.edu.vaccine_system.model.vo.*;
+import com.tjut.edu.vaccine_system.model.vo.UserListVO;
+import com.tjut.edu.vaccine_system.model.vo.UserDetailVO;
 import com.tjut.edu.vaccine_system.mapper.SysUserMapper;
-import com.tjut.edu.vaccine_system.service.AppointmentService;
-import com.tjut.edu.vaccine_system.service.ChildProfileService;
-import com.tjut.edu.vaccine_system.service.RecordService;
 import com.tjut.edu.vaccine_system.service.SysUserService;
-import com.tjut.edu.vaccine_system.service.VaccinationSiteService;
-import org.springframework.context.annotation.Lazy;
+import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
-import org.springframework.transaction.annotation.Transactional;
 import org.springframework.util.StringUtils;
 
-import java.time.LocalDate;
 import java.time.LocalDateTime;
-import java.util.Collections;
 import java.util.List;
 import java.util.Optional;
 import java.util.stream.Collectors;
 
 /**
- * 系统用户 Service 实现（明文密码、用户状态枚举、注销/禁用/恢复）
+ * 系统用户 Service 实现
+ * 登录、查询等基础操作保留在此，复杂业务逻辑委托给专职Service
+ *
+ * @author vaccine-system
+ * @since 2026-03-27
  */
+@Slf4j
 @Service
+@RequiredArgsConstructor
 public class SysUserServiceImpl extends ServiceImpl<SysUserMapper, SysUser> implements SysUserService {
 
-    private final ChildProfileService childProfileService;
-    private final AppointmentService appointmentService;
-    private final RecordService recordService;
-    private final VaccinationSiteService vaccinationSiteService;
-
-    public SysUserServiceImpl(ChildProfileService childProfileService,
-                              @Lazy AppointmentService appointmentService, @Lazy RecordService recordService,
-                              @Lazy VaccinationSiteService vaccinationSiteService) {
-        this.childProfileService = childProfileService;
-        this.appointmentService = appointmentService;
-        this.recordService = recordService;
-        this.vaccinationSiteService = vaccinationSiteService;
-    }
+    // 专职服务委托
+    private final SysUserRegisterService sysUserRegisterService;
+    private final SysUserManagementService sysUserManagementService;
+    private final SysUserDetailService sysUserDetailService;
 
     @Override
     public Optional<SysUser> login(String username, String password) {
@@ -76,39 +65,29 @@ public class SysUserServiceImpl extends ServiceImpl<SysUserMapper, SysUser> impl
                 .eq(SysUser::getId, user.getId())
                 .set(SysUser::getLastLoginTime, LocalDateTime.now()));
         user.setLastLoginTime(LocalDateTime.now());
+        log.info("用户登录成功，用户ID: {}, 用户名: {}", user.getId(), user.getUsername());
         return Optional.of(user);
     }
 
     @Override
     public boolean isUsernameValid(String username) {
-        if (!StringUtils.hasText(username)) return false;
+        if (!StringUtils.hasText(username)) {
+            return false;
+        }
         SysUser user = getOne(new LambdaQueryWrapper<SysUser>().eq(SysUser::getUsername, username.trim()));
-        if (user == null) return false;
+        if (user == null) {
+            return false;
+        }
         UserStatusEnum statusEnum = UserStatusEnum.fromCode(user.getStatus());
         return statusEnum != null && statusEnum.canLogin();
     }
 
     @Override
-    @Transactional(rollbackFor = Exception.class)
     public SysUser register(RegisterDTO dto) {
-        String username = dto.getUsername() != null ? dto.getUsername().trim() : "";
-        if (!StringUtils.hasText(username)) {
-            throw new BizException(BizErrorCode.BAD_REQUEST, "用户名不能为空");
-        }
-        Long existingId = baseMapper.selectIdByUsernameAny(username);
-        if (existingId != null) {
-            throw new BizException(BizErrorCode.USERNAME_TAKEN);
-        }
-        SysUser user = new SysUser();
-        user.setUsername(username);
-        user.setPassword(dto.getPassword() != null ? dto.getPassword().trim() : "");
-        user.setRole(dto.getRole() != null ? dto.getRole().trim().toUpperCase() : "RESIDENT");
-        user.setRealName(StringUtils.hasText(dto.getRealName()) ? dto.getRealName().trim() : null);
-        user.setPhone(StringUtils.hasText(dto.getPhone()) ? dto.getPhone().trim() : null);
-        user.setAddress(StringUtils.hasText(dto.getAddress()) ? dto.getAddress().trim() : null);
-        user.setStatus(UserStatusEnum.NORMAL.getCode());
-        save(user);
-        return getById(user.getId());
+        log.info("开始用户注册，用户名: {}", dto.getUsername());
+        SysUser result = sysUserRegisterService.register(dto);
+        log.info("用户注册成功，用户ID: {}", result.getId());
+        return result;
     }
 
     @Override
@@ -157,178 +136,56 @@ public class SysUserServiceImpl extends ServiceImpl<SysUserMapper, SysUser> impl
 
     @Override
     public UserDetailVO getUserDetail(Long userId) {
-        SysUser user = getById(userId);
-        if (user == null) return null;
-        UserDetailVO vo = UserDetailVO.builder()
-                .id(user.getId())
-                .username(user.getUsername())
-                .realName(user.getRealName())
-                .role(user.getRole())
-                .gender(user.getGender())
-                .phone(user.getPhone())
-                .idCard(user.getIdCard())
-                .address(user.getAddress())
-                .avatar(user.getAvatar())
-                .status(user.getStatus())
-                .statusLabel(UserStatusEnum.fromCode(user.getStatus()) != null ? UserStatusEnum.fromCode(user.getStatus()).getDesc() : "")
-                .createTime(user.getCreateTime())
-                .lastLoginTime(user.getLastLoginTime())
-                .updateTime(user.getUpdateTime())
-                .build();
-        String role = user.getRole() != null ? user.getRole().toUpperCase() : "";
-        if ("RESIDENT".equals(role) || "USER".equals(role)) {
-            List<ChildProfile> children = childProfileService.list(new LambdaQueryWrapper<ChildProfile>().eq(ChildProfile::getParentId, userId));
-            vo.setChildList(children.stream().map(this::toChildSimpleVO).collect(Collectors.toList()));
-            IPage<Appointment> appPage = appointmentService.pageAppointments(1, 100, userId, null, null, null, null, null);
-            vo.setAppointmentList(appPage.getRecords().stream().map(this::toAppointmentSimpleVO).collect(Collectors.toList()));
-            List<Record> records = recordService.listByUserId(userId);
-            vo.setRecordList(records.stream().map(this::toRecordSimpleVO).collect(Collectors.toList()));
-        }
-        if ("DOCTOR".equals(role)) {
-            List<Appointment> byDoctor = appointmentService.listByDoctorId(userId);
-            vo.setScheduleList(byDoctor.stream().map(this::toAppointmentSimpleVO).collect(Collectors.toList()));
-            vo.setTodayAppointmentCount(appointmentService.countTodayByDoctorId(userId));
-            vo.setHistoryRecordCount(recordService.countByDoctorId(userId));
-        }
-        return vo;
-    }
-
-    private ChildProfileSimpleVO toChildSimpleVO(ChildProfile c) {
-        return ChildProfileSimpleVO.builder()
-                .id(c.getId())
-                .parentId(c.getParentId())
-                .name(c.getName())
-                .birthDate(c.getBirthDate())
-                .gender(c.getGender())
-                .contraindicationAllergy(c.getContraindicationAllergy())
-                .vaccinationCardNo(c.getVaccinationCardNo())
-                .createTime(c.getCreateTime())
-                .updateTime(c.getUpdateTime())
-                .build();
-    }
-
-    private AppointmentSimpleVO toAppointmentSimpleVO(Appointment a) {
-        AppointmentStatusEnum statusEnum = AppointmentStatusEnum.fromCode(a.getStatus());
-        return AppointmentSimpleVO.builder()
-                .id(a.getId())
-                .userId(a.getUserId())
-                .childId(a.getChildId())
-                .vaccineId(a.getVaccineId())
-                .siteId(a.getSiteId())
-                .appointmentDate(a.getAppointmentDate())
-                .timeSlot(a.getTimeSlot())
-                .status(a.getStatus())
-                .statusLabel(statusEnum != null ? statusEnum.getDesc() : String.valueOf(a.getStatus()))
-                .doctorId(a.getDoctorId())
-                .remark(a.getRemark())
-                .createTime(a.getCreateTime())
-                .updateTime(a.getUpdateTime())
-                .build();
-    }
-
-    private RecordSimpleVO toRecordSimpleVO(Record r) {
-        return RecordSimpleVO.builder()
-                .id(r.getId())
-                .orderId(r.getOrderId())
-                .userId(r.getUserId())
-                .childId(r.getChildId())
-                .vaccineId(r.getVaccineId())
-                .doctorId(r.getDoctorId())
-                .siteId(r.getSiteId())
-                .vaccinateTime(r.getVaccinateTime())
-                .status(r.getStatus())
-                .remark(r.getRemark())
-                .createTime(r.getCreateTime())
-                .build();
+        log.info("开始查询用户详情，用户ID: {}", userId);
+        UserDetailVO result = sysUserDetailService.getUserDetail(userId);
+        log.info("用户详情查询完成，用户ID: {}", userId);
+        return result;
     }
 
     @Override
     public void verifyAdminPassword(Long adminUserId, String adminPassword) {
-        if (adminUserId == null || !StringUtils.hasText(adminPassword)) {
-            throw new BizException(BizErrorCode.ADMIN_PASSWORD_WRONG);
-        }
-        SysUser admin = getById(adminUserId);
-        if (admin == null) {
-            throw new BizException(BizErrorCode.ADMIN_PASSWORD_WRONG);
-        }
-        if (!"ADMIN".equals(admin.getRole())) {
-            throw new BizException(BizErrorCode.BAD_REQUEST, "仅管理员可执行此操作，请使用管理员账号");
-        }
-        String dbPwd = admin.getPassword();
-        if (dbPwd == null || !adminPassword.trim().equals(dbPwd)) {
-            throw new BizException(BizErrorCode.ADMIN_PASSWORD_WRONG);
-        }
+        log.info("验证管理员密码，管理员ID: {}", adminUserId);
+        sysUserRegisterService.verifyAdminPassword(adminUserId, adminPassword);
+        log.info("管理员密码验证成功，管理员ID: {}", adminUserId);
     }
 
     @Override
-    @Transactional(rollbackFor = Exception.class)
     public void deactivateUser(Long targetUserId, Long adminUserId, String adminPassword) {
-        verifyAdminPassword(adminUserId, adminPassword);
-        SysUser target = getById(targetUserId);
-        if (target == null) {
-            throw new BizException(BizErrorCode.NOT_FOUND.getCode(), "用户不存在");
-        }
-        UserStatusEnum statusEnum = UserStatusEnum.fromCode(target.getStatus());
-        if (statusEnum == UserStatusEnum.DEACTIVATED) {
-            throw new BizException(BizErrorCode.USER_ALREADY_DEACTIVATED);
-        }
-        target.setStatus(UserStatusEnum.DEACTIVATED.getCode());
-        updateById(target);
-        // 医生账户注销后，其作为驻场医生的接种点自动转为禁用并清空驻场医生
-        if ("DOCTOR".equals(target.getRole())) {
-            vaccinationSiteService.disableSitesByResidentDoctorId(targetUserId);
-        }
+        log.info("开始注销用户，目标用户ID: {}, 操作管理员ID: {}", targetUserId, adminUserId);
+        sysUserManagementService.deactivateUser(targetUserId, adminUserId, adminPassword);
+        log.info("用户注销成功，用户ID: {}", targetUserId);
     }
 
     @Override
-    @Transactional(rollbackFor = Exception.class)
     public void disableUser(Long userId) {
-        SysUser user = getById(userId);
-        if (user == null) throw new BizException(BizErrorCode.NOT_FOUND.getCode(), "用户不存在");
-        if (user.getStatus() != null && user.getStatus() == UserStatusEnum.DEACTIVATED.getCode()) {
-            throw new BizException(BizErrorCode.USER_ALREADY_DEACTIVATED);
-        }
-        user.setStatus(UserStatusEnum.DISABLED.getCode());
-        updateById(user);
-        // 医生账户禁用后，其作为驻场医生的接种点自动转为禁用并清空驻场医生
-        if ("DOCTOR".equals(user.getRole())) {
-            vaccinationSiteService.disableSitesByResidentDoctorId(userId);
-        }
+        log.info("开始禁用用户，用户ID: {}", userId);
+        sysUserManagementService.disableUser(userId);
+        log.info("用户禁用成功，用户ID: {}", userId);
     }
 
     @Override
-    @Transactional(rollbackFor = Exception.class)
     public void enableUser(Long userId) {
-        SysUser user = getById(userId);
-        if (user == null) throw new BizException(BizErrorCode.NOT_FOUND.getCode(), "用户不存在");
-        if (user.getStatus() != null && user.getStatus() == UserStatusEnum.DEACTIVATED.getCode()) {
-            throw new BizException(BizErrorCode.USER_ALREADY_DEACTIVATED);
-        }
-        user.setStatus(UserStatusEnum.NORMAL.getCode());
-        updateById(user);
+        log.info("开始启用用户，用户ID: {}", userId);
+        sysUserManagementService.enableUser(userId);
+        log.info("用户启用成功，用户ID: {}", userId);
     }
 
     @Override
-    @Transactional(rollbackFor = Exception.class)
     public void saveOrUpdateUser(SysUser user) {
-        if (user == null) return;
-        if (StringUtils.hasText(user.getPassword())) {
-            user.setPassword(user.getPassword().trim());
-        }
-        if (StringUtils.hasText(user.getUsername())) {
-            Long existingId = baseMapper.selectIdByUsernameAny(user.getUsername().trim());
-            if (existingId != null && !existingId.equals(user.getId())) {
-                throw new BizException(BizErrorCode.USERNAME_TAKEN);
-            }
-        }
-        saveOrUpdate(user);
+        log.info("开始保存/更新用户，用户ID: {}", user.getId());
+        sysUserManagementService.saveOrUpdateUser(user);
+        log.info("用户保存/更新成功，用户ID: {}", user.getId());
     }
 
     @Override
     public List<SysUser> listNormalDoctors() {
+        log.debug("开始查询正常医生列表");
         LambdaQueryWrapper<SysUser> query = new LambdaQueryWrapper<>();
-        query.eq(SysUser::getRole, "DOCTOR")
-             .eq(SysUser::getStatus, UserStatusEnum.NORMAL.getCode());
-        return list(query);
+        // 使用 RoleConstants 替换魔法值
+        query.eq(SysUser::getRole, RoleConstants.DOCTOR)
+                .eq(SysUser::getStatus, UserStatusEnum.NORMAL.getCode());
+        List<SysUser> result = list(query);
+        log.debug("查询到正常医生数量: {}", result.size());
+        return result;
     }
 }

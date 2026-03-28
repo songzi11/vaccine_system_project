@@ -5,7 +5,8 @@
       "Bash(mysql:*)",
       "Bash(where mysql:*)",
       "Bash(\"/c/Program Files/MySQL/MySQL Server 8.0/bin/mysql.exe\":*)",
-      "Bash(git:*)"
+      "Bash(git:*)",
+      "Bash(xargs wc:*)"
     ]
   }
 }

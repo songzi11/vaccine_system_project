@@ -2,7 +2,9 @@
   "permissions": {
     "allow": [
       "Bash(git remote:*)",
-      "Bash(git pull:*)"
+      "Bash(git pull:*)",
+      "Bash(Compile project:*)",
+      "Bash(mvn compile:*)"
     ]
   }
 }

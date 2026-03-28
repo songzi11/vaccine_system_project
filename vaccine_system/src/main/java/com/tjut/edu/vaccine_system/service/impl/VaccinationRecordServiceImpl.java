@@ -10,6 +10,7 @@ import com.tjut.edu.vaccine_system.model.entity.SysUser;
 import com.tjut.edu.vaccine_system.model.enums.AppointmentStatusEnum;
 import com.tjut.edu.vaccine_system.common.exception.BizErrorCode;
 import com.tjut.edu.vaccine_system.common.exception.BizException;
+import com.tjut.edu.vaccine_system.constants.RoleConstants;
 import com.tjut.edu.vaccine_system.model.entity.Vaccine;
 import com.tjut.edu.vaccine_system.model.entity.VaccineBatch;
 import com.tjut.edu.vaccine_system.model.entity.VaccinationRecord;
@@ -89,8 +90,9 @@ public class VaccinationRecordServiceImpl extends ServiceImpl<VaccinationRecordM
         Long operatorId = dto.getOperatorUserId();
         if (operatorId != null) {
             SysUser operator = sysUserService.getById(operatorId);
-            if (operator == null || (!"DOCTOR".equals(operator.getRole()) && !"ADMIN".equals(operator.getRole()))) {
-                throw new BizException(BizErrorCode.BAD_REQUEST, "仅医生或管理员可执行接种核销");
+            if (operator == null || (!RoleConstants.isDoctor(operator.getRole())
+                    && !RoleConstants.isAdmin(operator.getRole()))) {
+                throw new BizException(bizErrorCode.BAD_REQUEST, "仅医生或管理员可执行接种核销");
             }
         }
 
@@ -109,7 +111,8 @@ public class VaccinationRecordServiceImpl extends ServiceImpl<VaccinationRecordM
         if (vaccine == null || !VaccineStatusEnum.isUp(vaccine.getStatus())) {
             throw new BizException(BizErrorCode.VACCINE_OFF_SHELF_CANNOT_RECORD);
         }
-        if (operatorId != null && "DOCTOR".equals(Optional.ofNullable(sysUserService.getById(operatorId)).map(SysUser::getRole).orElse(null))) {
+        if (operatorId != null && RoleConstants.isDoctor(
+                Optional.ofNullable(sysUserService.getById(operatorId)).map(SysUser::getRole).orElse(null))) {
             Long appointmentDoctorId = appointment.getDoctorId();
             boolean canVerify = appointmentDoctorId != null && operatorId.equals(appointmentDoctorId);
             if (!canVerify && appointmentDoctorId == null && appointment.getSiteId() != null) {

@@ -4,6 +4,7 @@ import com.baomidou.mybatisplus.core.metadata.IPage;
 import com.tjut.edu.vaccine_system.common.result.PageResult;
 import com.tjut.edu.vaccine_system.common.result.Result;
 import com.tjut.edu.vaccine_system.common.result.Results;
+import com.tjut.edu.vaccine_system.constants.RoleConstants;
 import com.tjut.edu.vaccine_system.model.entity.Appointment;
 import com.tjut.edu.vaccine_system.model.entity.ChildProfile;
 import com.tjut.edu.vaccine_system.model.entity.SysUser;
@@ -20,6 +21,9 @@ import java.util.List;
 
 /**
  * 管理员-预约列表（排班先行：家长选排班预约，无管理员排期流程）
+ *
+ * @author vaccine-system
+ * @since 2026-03-27
  */
 @RestController
 @RequestMapping(value = {"/admin/appointment", "/api/admin/appointment"})
@@ -57,9 +61,10 @@ public class AdminAppointmentController {
     @GetMapping("/doctors")
     public Result<List<SysUser>> listDoctors() {
         List<SysUser> list = sysUserService.lambdaQuery()
-                .eq(SysUser::getRole, "DOCTOR")
+                .eq(SysUser::getRole, RoleConstants.DOCTOR)
                 .eq(SysUser::getStatus, UserStatusEnum.NORMAL.getCode())
                 .list();
+        // 移除敏感信息
         list.forEach(u -> u.setPassword(null));
         return Result.ok(list);
     }

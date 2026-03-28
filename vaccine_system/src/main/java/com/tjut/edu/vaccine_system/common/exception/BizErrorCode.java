@@ -28,6 +28,12 @@ public enum BizErrorCode {
     CHILD_NOT_FOUND(400, "儿童档案不存在"),
     /** 该儿童不属于当前用户 */
     CHILD_NOT_OWNED(400, "该儿童不属于当前用户"),
+    /** 用户不存在 */
+    USER_NOT_FOUND(404, "用户不存在"),
+    /** 疫苗不存在 */
+    VACCINE_NOT_FOUND(404, "疫苗不存在"),
+    /** 接种点不存在 */
+    SITE_NOT_FOUND(404, "接种点不存在"),
     /** 疫苗不存在或已下架 */
     VACCINE_NOT_AVAILABLE(400, "疫苗不存在或已下架"),
     /** 该疫苗已下架，无法录入接种记录 */
@@ -70,6 +76,12 @@ public enum BizErrorCode {
     USER_STATUS_INVALID(400, "仅正常或已禁用状态可操作"),
     /** 因爽约次数过多，三十日内不可预约 */
     RESERVATION_BANNED(400, "因爽约次数过多，三十日内不可预约，请按时履约。"),
+    /** 因爽约次数过多，三十日内不可预约 */
+    RESERVATION_BANNED(400, "因爽约次数过多，三十日内不可预约，请按时履约。"),
+    /** 用户被禁约 */
+    USER_BANNED(400, "用户被禁约，暂时无法预约"),
+    /** 排班已满 */
+    SCHEDULE_FULL(400, "该时段预约已满，请选择其他时段"),
     /** 自定义消息（code 使用 400） */
     BAD_REQUEST(400, ""),
     /** 资源不存在 */
